@@ -545,80 +545,116 @@ function renderCard(i){
     document.getElementById('sheet').appendChild(card);
   }
   const img=document.getElementById('cardimg-'+i);
-  if(state.picks[i]) img.src=state.picks[i];
+  // crossOrigin so this already-loaded preview can be reused on the canvas
+  // (lets us export synchronously → keeps the tap gesture that iOS share needs)
+  if(state.picks[i]){ img.crossOrigin='anonymous'; img.src=state.picks[i]; }
+}
+
+function safeName(s){ return String(s).replace(/[^\p{L}\p{N}\p{M}]+/gu,'-').replace(/^-|-$/g,'')||'card'; }
+
+/* Save a canvas as PNG. On phones (iOS Chrome/Safari the download attribute is
+   ignored) use the native share sheet → "Save Image" / "Save to Files".
+   Everywhere else fall back to a normal download. Called synchronously from the
+   tap so iOS still counts it as a user gesture. */
+function saveCanvas(cv, filename){
+  let durl;
+  try{ durl=cv.toDataURL('image/png'); }
+  catch(e){ alert('That picture can’t be saved (blocked). Pick a different one and try again.'); return; }
+  const blob=dataURLtoBlob(durl);
+  const file=new File([blob], filename, {type:'image/png'});
+  // Phones (esp. iOS, where the download attribute is ignored): native share
+  // sheet → "Save Image" / "Save to Files". Desktop: normal download.
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+    || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);  // iPadOS
+  if(isMobile && navigator.canShare && navigator.canShare({files:[file]})){
+    navigator.share({files:[file], title:filename})
+      .catch(err=>{ if(!err || err.name!=='AbortError') anchorSave(blob, filename); });
+    return;
+  }
+  anchorSave(blob, filename);
+}
+function anchorSave(blob, filename){
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a'); a.href=url; a.download=filename;
+  a.rel='noopener'; a.target='_blank';           // iOS fallback: opens image to long-press-save
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 6000);
+}
+function dataURLtoBlob(durl){
+  const [meta,b64]=durl.split(',');
+  const mime=(meta.match(/:(.*?);/)||[])[1]||'image/png';
+  const bin=atob(b64); const arr=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+  return new Blob([arr], {type:mime});
+}
+
+/* Build the single-card canvas from an already-loaded, CORS-clean image. */
+function renderCardCanvas(w, img){
+  const S=2, W=700*S, PAD=46*S, photo=W-PAD*2, nameH=150*S, H=PAD+photo+nameH;
+  const cv=document.createElement('canvas'); cv.width=W; cv.height=H;
+  const g=cv.getContext('2d');
+  round(g,0,0,W,H,34*S); g.fillStyle='#fff'; g.fill();
+  g.save(); round(g,PAD,PAD,photo,photo,24*S); g.clip();
+  const s=Math.max(photo/img.width, photo/img.height), dw=img.width*s, dh=img.height*s;
+  g.drawImage(img, PAD+(photo-dw)/2, PAD+(photo-dh)/2, dw, dh); g.restore();
+  const nameFont = isHi() ? DEV_FONT : '"Trebuchet MS",sans-serif';
+  g.save(); g.translate(PAD+30*S, PAD+30*S); g.rotate(-0.07);
+  g.font=`800 ${26*S}px ${nameFont}`; g.textAlign='left'; g.textBaseline='middle';
+  const label=badgeText(), tw=g.measureText(label).width;
+  round(g,-10*S,-22*S,tw+20*S,40*S,9*S); g.fillStyle='#3a2e26'; g.fill();
+  g.fillStyle='#fffaf2'; g.fillText(label,0,0); g.restore();
+  const y=PAD+photo+nameH/2; g.textBaseline='middle'; g.textAlign='left';
+  g.font=`800 ${64*S}px ${nameFont}`;
+  const [lead,rest]=splitFirstGrapheme(w.name), total=g.measureText(w.name).width;
+  let x=(W-total)/2;
+  g.fillStyle='#c74d18'; g.fillText(lead,x,y); x+=g.measureText(lead).width;
+  g.fillStyle='#3a2e26'; g.fillText(rest,x,y);
+  return cv;
 }
 
 /* ---------- download one card as PNG ---------- */
 function downloadCard(i){
   const w=state.words[i], src=state.picks[i];
   if(!src){ alert('Pick a picture first.'); return; }
-  const S=2, W=700*S, PAD=46*S, photo=W-PAD*2, nameH=150*S, H=PAD+photo+nameH;
-  const cv=document.createElement('canvas'); cv.width=W; cv.height=H;
-  const g=cv.getContext('2d');
-  round(g,0,0,W,H,34*S); g.fillStyle='#fff'; g.fill();
-  const img=new Image(); img.crossOrigin='anonymous';
-  img.onload=()=>{
-    g.save(); round(g,PAD,PAD,photo,photo,24*S); g.clip();
-    const s=Math.max(photo/img.width, photo/img.height);
-    const dw=img.width*s, dh=img.height*s;
-    g.drawImage(img, PAD+(photo-dw)/2, PAD+(photo-dh)/2, dw, dh); g.restore();
-    const nameFont = isHi() ? DEV_FONT : '"Trebuchet MS",sans-serif';
-    // badge
-    g.save(); g.translate(PAD+30*S, PAD+30*S); g.rotate(-0.07);
-    g.font=`800 ${26*S}px ${nameFont}`;
-    const label=badgeText(), tw=g.measureText(label).width;
-    round(g,-10*S,-22*S,tw+20*S,40*S,9*S); g.fillStyle='#3a2e26'; g.fill();
-    g.fillStyle='#fffaf2'; g.textBaseline='middle'; g.fillText(label,0,0); g.restore();
-    // name
-    const y=PAD+photo+nameH/2; g.textBaseline='middle'; g.textAlign='left';
-    g.font=`800 ${64*S}px ${nameFont}`;
-    const [lead,rest]=splitFirstGrapheme(w.name), total=g.measureText(w.name).width;
-    let x=(W-total)/2;
-    g.fillStyle='#c74d18'; g.fillText(lead,x,y); x+=g.measureText(lead).width;
-    g.fillStyle='#3a2e26'; g.fillText(rest,x,y);
-    try{
-      const safe=s=>String(s).replace(/[^\p{L}\p{N}\p{M}]+/gu,'-').replace(/^-|-$/g,'')||'card';
-      const a=document.createElement('a');
-      a.download=`phonics-${safe(state.sound)}-${safe(w.name)}.png`;
-      a.href=cv.toDataURL('image/png'); a.click();
-    }catch(e){ alert('This picture blocks download. Pick a different one and try again.'); }
-  };
-  img.onerror=()=>alert('Could not load that picture for download — try another.');
-  img.src=src;
+  const name=`phonics-${safeName(state.sound)}-${safeName(w.name)}.png`;
+  const pv=document.getElementById('cardimg-'+i);
+  if(pv && pv.complete && pv.naturalWidth){
+    saveCanvas(renderCardCanvas(w, pv), name);         // sync → iOS share sheet works
+  } else {
+    const im=new Image(); im.crossOrigin='anonymous';
+    im.onload=()=>saveCanvas(renderCardCanvas(w, im), name);
+    im.onerror=()=>alert('Could not load that picture — try another.');
+    im.src=src;
+  }
 }
 
 /* ---------- cut sheet: one PNG, 6x4in per two cards, dashed cut lines ---------- */
-async function makeCutSheet(){
-  const cards = state.words.map((w,i)=>({w, src:state.picks[i]})).filter(c=>c.src);
-  if(!cards.length){ alert('Pick a picture for at least one card first.'); return; }
-  const DPI=300, cw=3*DPI, ch=4*DPI, cols=2;      // each card = 3in x 4in @ 300dpi
-  const rows=Math.ceil(cards.length/cols);
+function buildSheet(cards, imgs){
+  const DPI=300, cw=3*DPI, ch=4*DPI, cols=2, rows=Math.ceil(cards.length/cols);
   const cv=document.createElement('canvas'); cv.width=cols*cw; cv.height=rows*ch;
   const g=cv.getContext('2d');
   g.fillStyle='#fff'; g.fillRect(0,0,cv.width,cv.height);
-
-  const imgs = await Promise.all(cards.map(c=>new Promise(res=>{
-    const im=new Image(); im.crossOrigin='anonymous';
-    im.onload=()=>res(im); im.onerror=()=>res(null); im.src=c.src;
-  })));
-
-  cards.forEach((c,k)=>{
-    const col=k%cols, row=(k/cols)|0;
-    drawCardCell(g, col*cw, row*ch, cw, ch, c.w, imgs[k]);
-  });
-
-  // dashed cut lines between cells
+  cards.forEach((c,k)=>{ const col=k%cols, row=(k/cols)|0; drawCardCell(g, col*cw, row*ch, cw, ch, c.w, imgs[k]); });
   g.strokeStyle='#b9a892'; g.lineWidth=2; g.setLineDash([12,10]);
   for(let x=cw; x<cv.width; x+=cw){ g.beginPath(); g.moveTo(x,0); g.lineTo(x,cv.height); g.stroke(); }
   for(let y=ch; y<cv.height; y+=ch){ g.beginPath(); g.moveTo(0,y); g.lineTo(cv.width,y); g.stroke(); }
   g.setLineDash([]);
-
-  try{
-    const safe=s=>String(s).replace(/[^\p{L}\p{N}\p{M}]+/gu,'-').replace(/^-|-$/g,'')||'card';
-    const a=document.createElement('a');
-    a.download=`phonics-${safe(state.sound)}-cut-sheet.png`;
-    a.href=cv.toDataURL('image/png'); a.click();
-  }catch(e){ alert('One of the pictures blocks download. Swap it and try again.'); }
+  return cv;
+}
+function makeCutSheet(){
+  const cards = state.words.map((w,i)=>({w, i, src:state.picks[i]})).filter(c=>c.src);
+  if(!cards.length){ alert('Pick a picture for at least one card first.'); return; }
+  const fname=`phonics-${safeName(state.sound)}-cut-sheet.png`;
+  const previews = cards.map(c=>document.getElementById('cardimg-'+c.i));
+  const allLoaded = previews.every(p=>p && p.complete && p.naturalWidth);
+  if(allLoaded){
+    saveCanvas(buildSheet(cards, previews), fname);          // sync → iOS share sheet works
+  } else {
+    Promise.all(cards.map((c,k)=> (previews[k] && previews[k].complete && previews[k].naturalWidth)
+      ? Promise.resolve(previews[k])
+      : new Promise(res=>{ const im=new Image(); im.crossOrigin='anonymous'; im.onload=()=>res(im); im.onerror=()=>res(null); im.src=c.src; })
+    )).then(imgs=> saveCanvas(buildSheet(cards, imgs), fname));
+  }
 }
 
 function drawCardCell(g, ox, oy, cw, ch, w, img){
