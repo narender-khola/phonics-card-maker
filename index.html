@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Phonics Card Maker</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <style>
   :root {
     --paper:#fffaf2; --ink:#3a2e26; --muted:#8a7a6d;
@@ -407,6 +408,9 @@ document.getElementById('findBtn').onclick = () => {
 function buildRows(){
   const b = document.getElementById('builder'); b.innerHTML='';
   document.getElementById('sheet').innerHTML='';
+  // Printed PDF / saved file uses the page title as its default name.
+  const label = isHi() ? (state.sound + '-se') : (state.sound);
+  document.title = 'phonics-' + label + '-' + state.words.map(w=>w.name).join('-');
   state.words.forEach((w,i) => {
     const row = document.createElement('div'); row.className='row';
     row.innerHTML = `
@@ -506,13 +510,26 @@ async function fromWikimedia(q, name){
   return imgs;
 }
 
+/* Split off the FIRST grapheme cluster (whole akshar for Hindi, e.g. "फू"),
+   not the first code point — splitting mid-cluster breaks Devanagari shaping. */
+function splitFirstGrapheme(str){
+  try{
+    if(typeof Intl!=='undefined' && Intl.Segmenter){
+      const seg=new Intl.Segmenter(state.lang,{granularity:'grapheme'});
+      const first=seg.segment(str)[Symbol.iterator]().next().value.segment;
+      return [first, str.slice(first.length)];
+    }
+  }catch(e){}
+  return [str.charAt(0), str.slice(1)];
+}
+
 /* ---------- Step 4: card preview ---------- */
 function renderCard(i){
   const w = state.words[i];
   let card = document.getElementById('card-'+i);
   if(!card){
     card = document.createElement('div'); card.className='card'+(isHi()?' dev':''); card.id='card-'+i;
-    const lead=w.name.charAt(0), rest=w.name.slice(1);
+    const [lead,rest]=splitFirstGrapheme(w.name);
     card.innerHTML = `
       <div class="badge">${badgeText()}</div>
       <div class="photo"><img id="cardimg-${i}" alt="${w.name}"></div>
@@ -549,12 +566,12 @@ function downloadCard(i){
     // name
     const y=PAD+photo+nameH/2; g.textBaseline='middle'; g.textAlign='left';
     g.font=`800 ${64*S}px ${nameFont}`;
-    const lead=w.name.charAt(0), rest=w.name.slice(1), total=g.measureText(w.name).width;
+    const [lead,rest]=splitFirstGrapheme(w.name), total=g.measureText(w.name).width;
     let x=(W-total)/2;
     g.fillStyle='#c74d18'; g.fillText(lead,x,y); x+=g.measureText(lead).width;
     g.fillStyle='#3a2e26'; g.fillText(rest,x,y);
     try{
-      const safe=s=>String(s).replace(/[^\p{L}\p{N}]+/gu,'-').replace(/^-|-$/g,'')||'card';
+      const safe=s=>String(s).replace(/[^\p{L}\p{N}\p{M}]+/gu,'-').replace(/^-|-$/g,'')||'card';
       const a=document.createElement('a');
       a.download=`phonics-${safe(state.sound)}-${safe(w.name)}.png`;
       a.href=cv.toDataURL('image/png'); a.click();
