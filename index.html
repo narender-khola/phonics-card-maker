@@ -1,0 +1,587 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phonics Card Maker</title>
+<style>
+  :root {
+    --paper:#fffaf2; --ink:#3a2e26; --muted:#8a7a6d;
+    --accent:#e8622a; --accent-deep:#c74d18; --card:#fff; --line:#ecdfce;
+    --good:#2f9e6f;
+    --card-w:3.4in; --card-h:4.4in;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; color:var(--ink);
+    font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif;
+    background:
+      radial-gradient(circle at 15% 10%, #fff1dc 0, transparent 42%),
+      radial-gradient(circle at 90% 88%, #ffe9d8 0, transparent 45%),
+      var(--paper);
+    min-height:100vh;
+  }
+  header{padding:26px 22px 6px; text-align:center}
+  header h1{margin:0; font-size:clamp(24px,5vw,36px); font-weight:800}
+  header p{margin:6px 0 0; color:var(--muted)}
+  main{max-width:960px; margin:0 auto; padding:10px 18px 80px}
+
+  .step{margin-top:30px}
+  .step > h2{
+    font-size:14px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--muted); margin:0 0 12px;
+  }
+  .step > h2 .n{
+    display:inline-grid; place-items:center; width:22px; height:22px;
+    background:var(--accent); color:#fff; border-radius:50%; font-size:13px;
+    margin-right:8px; vertical-align:-3px;
+  }
+
+  /* language toggle */
+  .langtoggle{display:inline-flex; gap:6px; margin-top:14px; background:#fff; border:2px solid var(--line); border-radius:999px; padding:4px}
+  .langtoggle .lang{
+    font:inherit; font-weight:800; font-size:15px; cursor:pointer;
+    border:0; background:none; color:var(--muted); padding:7px 18px; border-radius:999px;
+  }
+  .langtoggle .lang.on{background:var(--accent); color:#fff}
+
+  /* Devanagari for Hindi mode */
+  .sounds.dev .sound, .words.dev .chip, .card.dev .name, .card.dev .badge{
+    font-family:"Kohinoor Devanagari","Noto Sans Devanagari","Nirmala UI",system-ui,sans-serif;
+  }
+  .sounds.dev .sound{font-size:22px}
+
+  /* sound picker */
+  .sounds{display:flex; flex-wrap:wrap; gap:10px}
+  .sound{
+    font:inherit; font-weight:800; font-size:20px; cursor:pointer;
+    width:56px; height:56px; border-radius:16px;
+    border:2px solid var(--line); background:#fff; color:var(--ink);
+    transition:transform .08s, background .15s, border-color .15s;
+  }
+  .sound:hover{border-color:var(--accent)}
+  .sound.on{background:var(--accent); border-color:var(--accent); color:#fff; transform:translateY(-2px)}
+  .sound:focus-visible{outline:3px solid #ffbf9a; outline-offset:2px}
+
+  /* word chips */
+  .words{display:flex; flex-wrap:wrap; gap:10px}
+  .chip{
+    font:inherit; font-weight:700; font-size:16px; cursor:pointer;
+    padding:9px 16px; border-radius:999px;
+    border:2px solid var(--line); background:#fff; color:var(--ink);
+    display:inline-flex; align-items:center; gap:7px;
+  }
+  .chip:hover{border-color:var(--accent)}
+  .chip.on{background:#fff3ec; border-color:var(--accent); color:var(--accent-deep)}
+  .chip.on::before{content:"✓"; color:var(--good); font-weight:900}
+  .muted-note{color:var(--muted); font-size:14px; margin:12px 0 0}
+  .customadd{display:flex; flex-wrap:wrap; gap:10px; margin-top:12px; align-items:center}
+  .customadd input{
+    font:inherit; font-size:16px; padding:10px 14px; border-radius:999px;
+    border:2px solid var(--line); background:#fff; color:var(--ink); min-width:220px;
+  }
+  .customadd input:focus{outline:none; border-color:var(--accent)}
+
+  .btn{
+    font:inherit; font-weight:800; font-size:16px; cursor:pointer;
+    border:2px solid var(--accent); background:var(--accent); color:#fff;
+    padding:11px 20px; border-radius:999px;
+    transition:transform .08s, background .15s;
+  }
+  .btn:hover{background:var(--accent-deep); border-color:var(--accent-deep)}
+  .btn:active{transform:translateY(1px)}
+  .btn.ghost{background:#fff; color:var(--accent-deep)}
+  .btn:disabled{opacity:.45; cursor:not-allowed}
+  .btn:focus-visible{outline:3px solid #ffbf9a; outline-offset:2px}
+  .actions{display:flex; flex-wrap:wrap; gap:12px; margin-top:16px}
+
+  /* builder rows */
+  .builder{display:flex; flex-direction:column; gap:26px}
+  .row{
+    background:#fff; border:1px solid var(--line); border-radius:20px;
+    padding:16px; display:grid; grid-template-columns:auto 1fr; gap:18px;
+    align-items:start;
+  }
+  @media (max-width:640px){ .row{grid-template-columns:1fr} }
+  .row h3{margin:0 0 10px; font-size:20px}
+  .picks{
+    display:grid; grid-template-columns:repeat(auto-fill,minmax(84px,1fr));
+    gap:8px; max-height:280px; overflow:auto;
+  }
+  .pick{
+    aspect-ratio:1/1; border-radius:10px; overflow:hidden; cursor:pointer;
+    border:3px solid transparent; background:#f3e9dc; padding:0;
+  }
+  .pick img{width:100%; height:100%; object-fit:cover; display:block}
+  .pick.on{border-color:var(--accent)}
+  .loading,.empty{color:var(--muted); font-size:14px; padding:20px 4px}
+  .reload{
+    font:inherit; font-size:13px; font-weight:700; cursor:pointer;
+    background:none; border:0; color:var(--accent-deep); padding:6px 0;
+  }
+
+  /* card preview / print sheet */
+  .sheet{display:flex; flex-wrap:wrap; gap:26px; justify-content:center; margin-top:14px}
+  .card{
+    position:relative; width:var(--card-w); height:var(--card-h);
+    background:var(--card); border:2px dashed #d9c7b2; border-radius:16px;
+    padding:.22in; display:flex; flex-direction:column; gap:.18in;
+    box-shadow:0 16px 30px -20px rgba(90,50,20,.5);
+  }
+  .badge{
+    position:absolute; top:.34in; left:.34in; background:var(--ink); color:var(--paper);
+    font-weight:800; font-size:15px; border-radius:8px; padding:2px 9px; transform:rotate(-4deg); z-index:2;
+  }
+  .photo{
+    flex:1 1 auto; min-height:0; border-radius:12px; overflow:hidden;
+    background:linear-gradient(160deg,#fff2e2,#ffe3cc); display:grid; place-items:center;
+  }
+  .photo img{width:100%; height:100%; object-fit:cover; display:block}
+  .name{text-align:center; font-weight:800; font-size:.46in; line-height:1}
+  .name .lead{color:var(--accent-deep)}
+  .cardtools{display:flex; justify-content:center}
+  .dl{font:inherit; font-weight:700; font-size:13px; cursor:pointer;
+      border:1.5px solid var(--line); background:#fff; color:var(--muted); border-radius:999px; padding:5px 12px}
+  .dl:hover{color:var(--accent-deep); border-color:var(--accent)}
+
+  .hidden{display:none !important}
+  footer{
+    display:flex; flex-direction:column; align-items:center; gap:8px;
+    text-align:center; color:var(--muted); font-size:13px; padding:6px 18px 44px;
+  }
+  footer a{color:var(--accent-deep)}
+  .build{font-variant-numeric:tabular-nums}
+  .build a{text-decoration:none}
+  /* Buy me a coffee */
+  .coffee{
+    position:fixed; top:14px; right:16px; z-index:20;
+    display:inline-flex; align-items:center; gap:6px;
+    font:inherit; font-weight:800; font-size:14px; text-decoration:none;
+    background:#ffdd00; color:#2b2118; border-radius:999px; padding:8px 15px;
+    box-shadow:0 6px 16px -6px rgba(0,0,0,.35); border:1px solid #e9c900;
+    transition:transform .08s, filter .15s;
+  }
+  .coffee:hover{filter:brightness(.97)}
+  .coffee:active{transform:translateY(1px)}
+  .footer-coffee{
+    display:inline-flex; align-items:center; gap:6px; text-decoration:none;
+    font-weight:800; color:#8a6d00; background:#fff6c9;
+    border:1px solid #efe08f; border-radius:999px; padding:6px 13px;
+  }
+
+  @media print{
+    /* 6in x 4in photo paper, two cards side by side */
+    @page { size: 6in 4in; margin: 0; }
+    header, footer, .coffee, #stepSound, #stepWords, #stepBuild,
+    #stepCards>h2, .actions, .cardtools, .nav, .dots { display:none !important; }
+    body{background:#fff}
+    main{max-width:none; margin:0; padding:0}
+    #stepCards{margin:0}
+    .sheet{display:flex; flex-wrap:wrap; gap:0; margin:0; padding:0; justify-content:flex-start}
+    .card{
+      width:3in; height:4in; margin:0; border-radius:0;
+      border:1px dashed #b9a892; padding:.16in; gap:.12in;
+      box-shadow:none; break-inside:avoid;
+      -webkit-print-color-adjust:exact; print-color-adjust:exact;
+    }
+    .name{font-size:.4in}
+    .badge{top:.28in; left:.28in; -webkit-print-color-adjust:exact; print-color-adjust:exact}
+  }
+</style>
+</head>
+<body>
+<a class="coffee" href="https://buymeacoffee.com/narender" target="_blank" rel="noreferrer">☕ Buy me a coffee</a>
+
+<header>
+  <h1>🦊 Phonics Card Maker</h1>
+  <p>Pick a sound, choose words, pick a picture — print or download the cards.</p>
+  <div class="langtoggle" id="langtoggle">
+    <button class="lang on" data-lang="en" type="button">English</button>
+    <button class="lang" data-lang="hi" type="button">हिंदी</button>
+  </div>
+</header>
+
+<main>
+  <section class="step" id="stepSound">
+    <h2><span class="n">1</span>Pick a sound</h2>
+    <div class="sounds" id="sounds"></div>
+  </section>
+
+  <section class="step hidden" id="stepWords">
+    <h2><span class="n">2</span>Choose words for <span id="soundLabel"></span></h2>
+    <div class="words" id="words"></div>
+    <p class="muted-note">Tap the words you want a card for.</p>
+    <div class="customadd">
+      <input id="customWord" type="text" placeholder="or type your own word…" autocomplete="off" aria-label="Type your own word">
+      <button class="btn ghost" id="addBtn" type="button">+ Add word</button>
+    </div>
+    <div class="actions">
+      <button class="btn" id="findBtn" disabled>Find pictures →</button>
+    </div>
+  </section>
+
+  <section class="step hidden" id="stepBuild">
+    <h2><span class="n">3</span>Pick a picture for each word</h2>
+    <div class="builder" id="builder"></div>
+  </section>
+
+  <section class="step hidden" id="stepCards">
+    <h2><span class="n">4</span>Your cards</h2>
+    <div class="actions">
+      <button class="btn ghost" onclick="window.print()">🖨️ Print cut sheet</button>
+    </div>
+    <div class="sheet" id="sheet"></div>
+  </section>
+</main>
+
+<footer>
+  <a class="footer-coffee" href="https://buymeacoffee.com/narender" target="_blank" rel="noreferrer">☕ Buy me a coffee</a>
+  <div class="build" id="build"></div>
+  <div>Pictures from <a href="https://pixabay.com" target="_blank" rel="noopener">Pixabay</a>, <a href="https://openverse.org" target="_blank" rel="noopener">Openverse</a> &amp; <a href="https://commons.wikimedia.org" target="_blank" rel="noopener">Wikimedia Commons</a> — free to use.</div>
+</footer>
+
+<script>
+/* ============================ WORD BANKS ============================
+   Two languages. Keyed by the initial sound / letter.
+   Each word is [displayName, imageSearchHint]. The hint is ENGLISH so
+   pictures resolve well even for Hindi words. Add freely.             */
+const BANKS = {
+en: {
+  a:[["Apple","apple fruit red"],["Ant","ant insect macro"],["Axe","axe tool"],["Alligator","alligator"],["Arrow","arrow archery"],["Aeroplane","airplane sky"],["Anchor","ship anchor"],["Acorn","acorn oak"],["Ambulance","ambulance vehicle"],["Avocado","avocado fruit"]],
+  b:[["Ball","ball toy sphere"],["Banana","banana fruit"],["Bear","brown bear"],["Bus","school bus"],["Butterfly","butterfly"],["Balloon","balloon party"],["Book","open book"],["Bird","small bird"],["Bee","honey bee"],["Boat","boat water"],["Bell","hand bell"],["Bat","cricket bat"]],
+  c:[["Cat","cat kitten"],["Car","car automobile"],["Cake","birthday cake"],["Cow","cow cattle"],["Cup","tea cup"],["Carrot","carrot vegetable"],["Camel","camel desert"],["Candle","lit candle"],["Cloud","cloud sky"],["Crab","crab beach"],["Clock","wall clock"],["Crown","gold crown"]],
+  d:[["Dog","dog puppy"],["Duck","duck bird"],["Drum","drum instrument"],["Door","wooden door"],["Doll","doll toy"],["Deer","deer forest"],["Dolphin","dolphin sea"],["Diamond","diamond gem"],["Donut","donut food"],["Dinosaur","dinosaur toy"]],
+  e:[["Egg","chicken egg"],["Elephant","elephant"],["Eagle","eagle bird"],["Envelope","envelope mail"],["Ear","human ear"],["Earth","planet earth"],["Eraser","pencil eraser"],["Engine","train engine"]],
+  f:[["Fox","red fox face"],["Feather","single feather closeup"],["Fish","fish underwater"],["Frog","green frog"],["Flower","flower bloom"],["Fan","hand fan"],["Fire","campfire flames"],["Football","soccer football"],["Fork","dinner fork"],["Frame","picture frame"],["Fruit","fruit basket"]],
+  g:[["Goat","goat farm"],["Grapes","grapes fruit"],["Guitar","acoustic guitar"],["Gift","gift box present"],["Giraffe","giraffe"],["Ghost","cartoon ghost"],["Glass","drinking glass"],["Glove","winter glove"],["Goose","goose bird"],["Globe","world globe"]],
+  h:[["Hat","hat cap"],["Horse","horse animal"],["House","house home"],["Hen","hen chicken"],["Hand","human hand"],["Heart","red heart"],["Honey","honey jar"],["Helicopter","helicopter"],["Hammer","hammer tool"],["Hut","village hut"]],
+  i:[["Igloo","igloo snow"],["Ink","ink bottle"],["Iguana","iguana lizard"],["Ice cream","ice cream cone"],["Island","tropical island"],["Insect","insect macro"]],
+  j:[["Jug","water jug"],["Jam","jam jar fruit"],["Jet","jet airplane"],["Jellyfish","jellyfish"],["Jacket","winter jacket"],["Jeep","jeep vehicle"],["Jewel","jewel gemstone"],["Juice","fruit juice glass"]],
+  k:[["Kite","kite flying sky"],["Key","metal key"],["Kangaroo","kangaroo"],["Kettle","kettle teapot"],["King","king crown"],["Kitten","kitten cat"],["Knife","kitchen knife"],["Koala","koala bear"]],
+  l:[["Lion","lion animal"],["Leaf","green leaf"],["Lemon","lemon fruit"],["Lamp","table lamp"],["Ladder","ladder"],["Lock","padlock"],["Leg","human leg"],["Lizard","lizard reptile"],["Lollipop","lollipop candy"],["Lotus","lotus flower"]],
+  m:[["Monkey","monkey animal"],["Moon","full moon"],["Mouse","mouse animal"],["Milk","glass of milk"],["Mango","mango fruit"],["Mushroom","mushroom"],["Mask","face mask"],["Map","world map"],["Mountain","mountain landscape"],["Mug","coffee mug"]],
+  n:[["Nest","bird nest"],["Nose","human nose"],["Net","fishing net"],["Nut","walnut nut"],["Needle","sewing needle"],["Nail","metal nail"],["Newspaper","newspaper"],["Noodles","noodles bowl"]],
+  o:[["Orange","orange fruit"],["Owl","owl bird"],["Octopus","octopus"],["Onion","onion vegetable"],["Ostrich","ostrich bird"],["Ox","ox cattle"],["Oven","kitchen oven"],["Orbit","planet orbit"]],
+  p:[["Pig","pig farm"],["Pen","ballpoint pen"],["Panda","giant panda"],["Pizza","pizza food"],["Parrot","parrot bird"],["Pumpkin","pumpkin"],["Pencil","pencil"],["Peacock","peacock"],["Pineapple","pineapple fruit"],["Penguin","penguin"],["Plane","airplane"]],
+  q:[["Queen","queen crown"],["Quilt","patchwork quilt"],["Question","question mark"],["Quail","quail bird"],["Quiver","arrow quiver"]],
+  r:[["Rabbit","rabbit bunny"],["Rose","red rose flower"],["Ring","gold ring"],["Robot","robot toy"],["Rainbow","rainbow sky"],["Rocket","rocket space"],["Rat","rat animal"],["River","river landscape"],["Ruler","measuring ruler"]],
+  s:[["Sun","sun bright sky"],["Snake","snake reptile"],["Star","star night"],["Sock","sock pair"],["Strawberry","strawberry fruit"],["Ship","sailing ship"],["Spoon","metal spoon"],["Snail","snail garden"],["Shoe","single shoe"],["Sheep","sheep farm"]],
+  t:[["Tiger","tiger animal"],["Tree","green tree"],["Train","train railway"],["Turtle","turtle animal"],["Tomato","tomato fruit"],["Table","wooden table"],["Teddy","teddy bear"],["Tent","camping tent"],["Truck","delivery truck"],["Top","spinning top toy"]],
+  u:[["Umbrella","umbrella"],["Unicorn","unicorn"],["Umpire","cricket umpire"],["Uniform","school uniform"],["Utensils","kitchen utensils"]],
+  v:[["Van","delivery van"],["Violin","violin instrument"],["Volcano","volcano"],["Vegetables","vegetables basket"],["Vase","flower vase"],["Vulture","vulture bird"],["Vest","wool vest"]],
+  w:[["Whale","whale ocean"],["Watch","wrist watch"],["Web","spider web"],["Watermelon","watermelon fruit"],["Wolf","grey wolf"],["Window","house window"],["Wheel","cart wheel"],["Well","water well"],["Wing","bird wing"],["Wall","brick wall"]],
+  x:[["Fox","red fox face"],["Box","cardboard box"],["Xylophone","xylophone instrument"],["Ox","ox cattle"],["Six","number six"]],
+  y:[["Yak","yak animal"],["Yarn","ball of yarn"],["Yacht","yacht boat"],["Yolk","egg yolk"],["Yo-yo","yoyo toy"],["Yogurt","yogurt bowl"]],
+  z:[["Zebra","zebra animal"],["Zip","zipper"],["Zoo","zoo animals"],["Zero","number zero"],["Zigzag","zigzag pattern"]],
+},
+hi: {
+  "अ":[["अनार","pomegranate fruit"],["अंगूर","grapes fruit"],["अनानास","pineapple fruit"]],
+  "आ":[["आम","mango fruit"],["आग","fire flames"],["आलू","potato vegetable"]],
+  "इ":[["इमली","tamarind"],["ईंट","brick"]],
+  "उ":[["उल्लू","owl bird"],["ऊँट","camel desert"]],
+  "ए":[["एड़ी","heel foot"],["एक","number one"]],
+  "क":[["कमल","lotus flower"],["कबूतर","pigeon bird"],["कुत्ता","dog puppy"],["कलम","pen"]],
+  "ख":[["खरगोश","rabbit bunny"],["खीरा","cucumber vegetable"],["खिलौना","toy"]],
+  "ग":[["गाय","cow cattle"],["गुलाब","rose flower"],["गमला","flower pot"],["गेंद","ball toy"]],
+  "घ":[["घर","house home"],["घड़ी","clock watch"],["घोड़ा","horse"]],
+  "च":[["चाँद","moon"],["चम्मच","spoon"],["चिड़िया","sparrow bird"],["चाबी","key"]],
+  "छ":[["छाता","umbrella"],["छत","rooftop"]],
+  "ज":[["जहाज़","ship boat"],["जग","water jug"],["जूता","shoe"]],
+  "झ":[["झंडा","flag"],["झरना","waterfall"]],
+  "ट":[["टमाटर","tomato"],["टोपी","cap hat"],["टोकरी","basket"]],
+  "ठ":[["ठेला","cart"]],
+  "त":[["तितली","butterfly"],["तरबूज","watermelon"],["तारा","star"]],
+  "थ":[["थाली","plate steel"],["थैला","bag sack"]],
+  "द":[["दीया","oil lamp diya"],["दरवाज़ा","door"],["दवा","medicine"]],
+  "ध":[["धनुष","bow archery"],["धागा","thread spool"]],
+  "न":[["नाव","boat"],["नल","water tap"],["नाक","nose"]],
+  "प":[["पतंग","kite sky"],["पंखा","fan"],["पेड़","tree"],["पत्ता","leaf"]],
+  "फ":[["फूल","flower bloom"],["फल","fruit"],["फ्रॉक","frock dress"]],
+  "ब":[["बकरी","goat"],["बादल","cloud sky"],["बल्ला","cricket bat"],["बतख","duck"]],
+  "भ":[["भालू","bear"],["भौंरा","bumblebee"]],
+  "म":[["मछली","fish"],["मोर","peacock"],["मकान","house"],["मक्खी","housefly"]],
+  "य":[["यज्ञ","havan fire ritual"]],
+  "र":[["रोटी","bread roti"],["रथ","chariot"],["रस्सी","rope"]],
+  "ल":[["लोमड़ी","fox"],["लड्डू","laddu sweet"],["लट्टू","spinning top toy"]],
+  "व":[["वृक्ष","tree"],["वर्षा","rain"]],
+  "श":[["शेर","lion"],["शलजम","turnip vegetable"],["शंख","conch shell"]],
+  "स":[["सूरज","sun"],["साँप","snake"],["सेब","apple fruit"],["सितारा","star"]],
+  "ह":[["हाथी","elephant"],["हार","necklace garland"],["हिरण","deer"]],
+},
+};
+
+/* ── PICTURE SOURCE ─────────────────────────────────────────────────
+   Pixabay gives the cleanest kid-friendly photos. Get a FREE key (30s,
+   no credit card): open https://pixabay.com/api/docs/ while signed in —
+   your key is shown near the top of that page. Paste it between the
+   quotes below. Leave it "" to just use Openverse (no key needed).      */
+const PIXABAY_KEY = "56694500-41976245ac2d99510780e48c9";
+const PIXABAY = "https://pixabay.com/api/";
+const WIKI = "https://commons.wikimedia.org/w/api.php";
+const OPENV = "https://api.openverse.org/v1/images/";
+const DEV_FONT = '"Kohinoor Devanagari","Noto Sans Devanagari","Nirmala UI",sans-serif';
+const state = { lang:'en', sound:null, words:[], picks:{}, options:{}, page:{} };
+
+function isHi(){ return state.lang === 'hi'; }
+function badgeText(){ return isHi() ? state.sound : '/'+state.sound+'/'; }
+
+/* ---------- Language toggle ---------- */
+document.querySelectorAll('#langtoggle .lang').forEach(btn=>{
+  btn.onclick = () => {
+    if(state.lang === btn.dataset.lang) return;
+    state.lang = btn.dataset.lang;
+    document.querySelectorAll('#langtoggle .lang').forEach(x=>x.classList.toggle('on', x===btn));
+    buildSounds();
+    state.sound = null; state.words = [];
+    hide('stepWords'); hide('stepBuild'); hide('stepCards');
+  };
+});
+
+/* ---------- Step 1: sounds ---------- */
+const soundsEl = document.getElementById('sounds');
+function buildSounds(){
+  soundsEl.innerHTML = '';
+  soundsEl.classList.toggle('dev', isHi());
+  Object.keys(BANKS[state.lang]).forEach(s => {
+    const b = document.createElement('button');
+    b.className = 'sound'; b.textContent = s; b.setAttribute('aria-label','Sound '+s);
+    b.onclick = () => selectSound(s, b);
+    soundsEl.appendChild(b);
+  });
+}
+buildSounds();
+
+function selectSound(s, btn){
+  state.sound = s; state.words = []; state.picks = {}; state.options = {};
+  document.querySelectorAll('.sound').forEach(x=>x.classList.remove('on'));
+  btn.classList.add('on');
+  document.getElementById('soundLabel').textContent = isHi() ? (s + ' से') : ('/'+s+'/');
+  renderWords();
+  show('stepWords'); hide('stepBuild'); hide('stepCards');
+  document.getElementById('findBtn').disabled = true;
+  document.getElementById('stepWords').scrollIntoView({behavior:'smooth', block:'nearest'});
+}
+
+/* ---------- Step 2: words ---------- */
+function renderWords(){
+  const el = document.getElementById('words'); el.innerHTML='';
+  el.classList.toggle('dev', isHi());
+  ((BANKS[state.lang]||{})[state.sound]||[]).forEach(([name,q]) => el.appendChild(makeChip(name,q,false)));
+}
+function makeChip(name, q, selected){
+  const c = document.createElement('button');
+  c.className = 'chip' + (selected ? ' on' : '');
+  c.textContent = name;
+  if(selected && !state.words.find(w=>w.name===name)) state.words.push({name,q});
+  c.onclick = () => {
+    c.classList.toggle('on');
+    if(c.classList.contains('on')){
+      if(!state.words.find(w=>w.name===name)) state.words.push({name,q});
+    } else {
+      state.words = state.words.filter(w=>w.name!==name);
+    }
+    document.getElementById('findBtn').disabled = state.words.length===0;
+  };
+  return c;
+}
+function addCustomWord(){
+  const inp = document.getElementById('customWord');
+  const val = inp.value.trim();
+  if(!val) return;
+  const name = val.charAt(0).toUpperCase() + val.slice(1);
+  if(state.words.find(w=>w.name.toLowerCase()===name.toLowerCase())){ inp.value=''; return; }
+  document.getElementById('words').appendChild(makeChip(name, val, true));
+  document.getElementById('findBtn').disabled = false;
+  inp.value=''; inp.focus();
+}
+document.getElementById('addBtn').onclick = addCustomWord;
+document.getElementById('customWord').addEventListener('keydown', e=>{
+  if(e.key==='Enter'){ e.preventDefault(); addCustomWord(); }
+});
+document.getElementById('findBtn').onclick = () => {
+  buildRows(); show('stepBuild'); show('stepCards');
+  document.getElementById('stepBuild').scrollIntoView({behavior:'smooth', block:'start'});
+};
+
+/* ---------- Step 3: fetch + pick images ---------- */
+function buildRows(){
+  const b = document.getElementById('builder'); b.innerHTML='';
+  document.getElementById('sheet').innerHTML='';
+  state.words.forEach((w,i) => {
+    const row = document.createElement('div'); row.className='row';
+    row.innerHTML = `
+      <div>
+        <h3>${w.name}</h3>
+        <button class="reload" data-i="${i}">↻ more pictures</button>
+      </div>
+      <div class="picks" id="picks-${i}"><div class="loading">Finding pictures…</div></div>`;
+    b.appendChild(row);
+    row.querySelector('.reload').onclick = () => fetchImages(i, true);
+    renderCard(i);
+    fetchImages(i);
+  });
+}
+
+async function fetchImages(i, reshuffle){
+  const w = state.words[i];
+  const grid = document.getElementById('picks-'+i);
+  const query = w.q || w.name;
+  grid.innerHTML = '<div class="loading">Finding pictures…</div>';
+  // Start each session on a RANDOM page so different parents get a different
+  // pool of photos (not just the same "most popular" set). "more pictures"
+  // pages further on.
+  state.page[i] = reshuffle ? (state.page[i]||1) + 1 + Math.floor(Math.random()*2)
+                            : 1 + Math.floor(Math.random()*6);
+
+  let imgs = await gather(query, w, state.page[i]);
+  // rare words may have nothing on a deep page — fall back to page 1
+  if(!imgs.length && state.page[i] > 1){ state.page[i] = 1; imgs = await gather(query, w, 1); }
+
+  shuffle(imgs);                 // randomise order within the page too
+  state.options[i] = imgs;
+  if(!imgs.length){ grid.innerHTML='<div class="empty">No pictures found — try another word or “more pictures”.</div>'; return; }
+
+  grid.innerHTML='';
+  const keepPick = reshuffle;   // clear selection only when the user asked for new ones
+  imgs.slice(0,12).forEach((im,k)=>{
+    const btn=document.createElement('button'); btn.className='pick'; btn.title=im.title;
+    const img=new Image(); img.loading='lazy'; img.crossOrigin='anonymous'; img.src=im.thumb; img.alt=w.name;
+    btn.appendChild(img);
+    btn.onclick=()=>{
+      grid.querySelectorAll('.pick').forEach(p=>p.classList.remove('on'));
+      btn.classList.add('on');
+      state.picks[i]=im.thumb;
+      renderCard(i);
+    };
+    grid.appendChild(btn);
+    if(k===0 && (keepPick || state.picks[i]===undefined)){ btn.click(); } // auto-pick first
+  });
+}
+
+// try each source in order until one returns pictures
+async function gather(query, w, page){
+  let imgs = [];
+  try { imgs = await fromPixabay(query, page); } catch(e){}
+  if(!imgs.length){ try { imgs = await fromOpenverse(query, page); } catch(e){} }
+  if(!imgs.length){ try { imgs = await fromWikimedia(query, w.name); } catch(e){} }
+  return imgs;
+}
+
+// ---- Pixabay: cleanest kid-friendly photos (needs a free key) ----
+async function fromPixabay(q, page){
+  if(!PIXABAY_KEY) throw new Error('no pixabay key');
+  const url = PIXABAY + '?key=' + PIXABAY_KEY + '&q=' + encodeURIComponent(q) +
+    '&image_type=photo&safesearch=true&order=popular&per_page=20&page=' + page;
+  const r = await fetch(url);
+  if(!r.ok) throw new Error('pixabay ' + r.status);
+  const j = await r.json();
+  return (j.hits||[]).map(h=>({thumb:h.webformatURL, title:(h.tags||q)}));
+}
+
+// ---- Openverse: real CC-licensed photos, good relevance, CORS-safe ----
+async function fromOpenverse(q, page){
+  const url = OPENV + '?q=' + encodeURIComponent(q) +
+    '&page_size=12&page=' + page + '&mature=false';
+  const r = await fetch(url);
+  if(!r.ok) throw new Error('openverse ' + r.status);
+  const j = await r.json();
+  return (j.results||[])
+    .filter(x=>x.thumbnail)
+    .map(x=>({thumb:x.thumbnail, title:(x.title||q)}));
+}
+
+// ---- Wikimedia Commons fallback ----
+async function fromWikimedia(q, name){
+  const url = WIKI + '?action=query&generator=search&gsrsearch=' + encodeURIComponent(q) +
+    '&gsrnamespace=6&gsrlimit=24&prop=imageinfo&iiprop=url|mime&iiurlwidth=500&format=json&origin=*';
+  const r = await fetch(url);
+  const j = await r.json();
+  let pages = Object.values((j.query&&j.query.pages)||{});
+  let imgs = pages
+    .filter(p=>p.imageinfo && /image\/(jpeg|png)/.test(p.imageinfo[0].mime))
+    .filter(p=>!/\.svg/i.test(p.title))
+    .map(p=>({thumb:p.imageinfo[0].thumburl, title:p.title.replace(/^File:/,'')}));
+  const key = (name||q).toLowerCase();
+  imgs.sort((a,b)=> (b.title.toLowerCase().includes(key)) - (a.title.toLowerCase().includes(key)));
+  return imgs;
+}
+
+/* ---------- Step 4: card preview ---------- */
+function renderCard(i){
+  const w = state.words[i];
+  let card = document.getElementById('card-'+i);
+  if(!card){
+    card = document.createElement('div'); card.className='card'+(isHi()?' dev':''); card.id='card-'+i;
+    const lead=w.name.charAt(0), rest=w.name.slice(1);
+    card.innerHTML = `
+      <div class="badge">${badgeText()}</div>
+      <div class="photo"><img id="cardimg-${i}" alt="${w.name}"></div>
+      <div class="name"><span class="lead">${lead}</span>${rest}</div>
+      <div class="cardtools"><button class="dl">⬇ Download card</button></div>`;
+    card.querySelector('.dl').onclick=()=>downloadCard(i);
+    document.getElementById('sheet').appendChild(card);
+  }
+  const img=document.getElementById('cardimg-'+i);
+  if(state.picks[i]) img.src=state.picks[i];
+}
+
+/* ---------- download one card as PNG ---------- */
+function downloadCard(i){
+  const w=state.words[i], src=state.picks[i];
+  if(!src){ alert('Pick a picture first.'); return; }
+  const S=2, W=700*S, PAD=46*S, photo=W-PAD*2, nameH=150*S, H=PAD+photo+nameH;
+  const cv=document.createElement('canvas'); cv.width=W; cv.height=H;
+  const g=cv.getContext('2d');
+  round(g,0,0,W,H,34*S); g.fillStyle='#fff'; g.fill();
+  const img=new Image(); img.crossOrigin='anonymous';
+  img.onload=()=>{
+    g.save(); round(g,PAD,PAD,photo,photo,24*S); g.clip();
+    const s=Math.max(photo/img.width, photo/img.height);
+    const dw=img.width*s, dh=img.height*s;
+    g.drawImage(img, PAD+(photo-dw)/2, PAD+(photo-dh)/2, dw, dh); g.restore();
+    const nameFont = isHi() ? DEV_FONT : '"Trebuchet MS",sans-serif';
+    // badge
+    g.save(); g.translate(PAD+30*S, PAD+30*S); g.rotate(-0.07);
+    g.font=`800 ${26*S}px ${nameFont}`;
+    const label=badgeText(), tw=g.measureText(label).width;
+    round(g,-10*S,-22*S,tw+20*S,40*S,9*S); g.fillStyle='#3a2e26'; g.fill();
+    g.fillStyle='#fffaf2'; g.textBaseline='middle'; g.fillText(label,0,0); g.restore();
+    // name
+    const y=PAD+photo+nameH/2; g.textBaseline='middle'; g.textAlign='left';
+    g.font=`800 ${64*S}px ${nameFont}`;
+    const lead=w.name.charAt(0), rest=w.name.slice(1), total=g.measureText(w.name).width;
+    let x=(W-total)/2;
+    g.fillStyle='#c74d18'; g.fillText(lead,x,y); x+=g.measureText(lead).width;
+    g.fillStyle='#3a2e26'; g.fillText(rest,x,y);
+    try{
+      const safe=s=>String(s).replace(/[^\p{L}\p{N}]+/gu,'-').replace(/^-|-$/g,'')||'card';
+      const a=document.createElement('a');
+      a.download=`phonics-${safe(state.sound)}-${safe(w.name)}.png`;
+      a.href=cv.toDataURL('image/png'); a.click();
+    }catch(e){ alert('This picture blocks download. Pick a different one and try again.'); }
+  };
+  img.onerror=()=>alert('Could not load that picture for download — try another.');
+  img.src=src;
+}
+
+function round(g,x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath();}
+function show(id){document.getElementById(id).classList.remove('hidden');}
+function hide(id){document.getElementById(id).classList.add('hidden');}
+function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+
+/* ---------- build info (stamped at deploy time) ---------- */
+const BUILD = { sha: "dev", date: "2026-07-14T15:20:15Z" };
+(function(){
+  const el = document.getElementById('build'); if(!el) return;
+  const real = s => s && s.indexOf('__') !== 0;
+  const sha = real(BUILD.sha) ? BUILD.sha : 'dev';
+  let when = '';
+  if(real(BUILD.date)){
+    const d = new Date(BUILD.date);
+    if(!isNaN(d)) when = ' · ' + d.toLocaleString(undefined,{dateStyle:'medium', timeStyle:'short'});
+  }
+  el.textContent = 'build ' + sha + when;
+})();
+</script>
+</body>
+</html>
