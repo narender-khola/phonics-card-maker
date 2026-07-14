@@ -229,8 +229,9 @@
   <section class="step hidden" id="stepCards">
     <h2><span class="n">4</span>Your cards</h2>
     <div class="actions">
-      <button class="btn ghost" onclick="window.print()">🖨️ Print cut sheet</button>
+      <button class="btn ghost" id="cutBtn" type="button">🖼️ Download cut sheet (PNG)</button>
     </div>
+    <p class="muted-note">One 6×4 inch sheet per two cards, with dashed cut lines. Print the PNG at photo size, then cut.</p>
     <div class="sheet" id="sheet"></div>
   </section>
 </main>
@@ -586,7 +587,69 @@ function downloadCard(i){
   img.src=src;
 }
 
+/* ---------- cut sheet: one PNG, 6x4in per two cards, dashed cut lines ---------- */
+async function makeCutSheet(){
+  const cards = state.words.map((w,i)=>({w, src:state.picks[i]})).filter(c=>c.src);
+  if(!cards.length){ alert('Pick a picture for at least one card first.'); return; }
+  const DPI=300, cw=3*DPI, ch=4*DPI, cols=2;      // each card = 3in x 4in @ 300dpi
+  const rows=Math.ceil(cards.length/cols);
+  const cv=document.createElement('canvas'); cv.width=cols*cw; cv.height=rows*ch;
+  const g=cv.getContext('2d');
+  g.fillStyle='#fff'; g.fillRect(0,0,cv.width,cv.height);
+
+  const imgs = await Promise.all(cards.map(c=>new Promise(res=>{
+    const im=new Image(); im.crossOrigin='anonymous';
+    im.onload=()=>res(im); im.onerror=()=>res(null); im.src=c.src;
+  })));
+
+  cards.forEach((c,k)=>{
+    const col=k%cols, row=(k/cols)|0;
+    drawCardCell(g, col*cw, row*ch, cw, ch, c.w, imgs[k]);
+  });
+
+  // dashed cut lines between cells
+  g.strokeStyle='#b9a892'; g.lineWidth=2; g.setLineDash([12,10]);
+  for(let x=cw; x<cv.width; x+=cw){ g.beginPath(); g.moveTo(x,0); g.lineTo(x,cv.height); g.stroke(); }
+  for(let y=ch; y<cv.height; y+=ch){ g.beginPath(); g.moveTo(0,y); g.lineTo(cv.width,y); g.stroke(); }
+  g.setLineDash([]);
+
+  try{
+    const safe=s=>String(s).replace(/[^\p{L}\p{N}\p{M}]+/gu,'-').replace(/^-|-$/g,'')||'card';
+    const a=document.createElement('a');
+    a.download=`phonics-${safe(state.sound)}-cut-sheet.png`;
+    a.href=cv.toDataURL('image/png'); a.click();
+  }catch(e){ alert('One of the pictures blocks download. Swap it and try again.'); }
+}
+
+function drawCardCell(g, ox, oy, cw, ch, w, img){
+  const nameFont = isHi() ? DEV_FONT : '"Trebuchet MS",sans-serif';
+  const p=Math.round(cw*0.06), photo=cw-2*p;
+  // photo (cover-fit square, rounded)
+  if(img){
+    g.save(); round(g, ox+p, oy+p, photo, photo, 26); g.clip();
+    const s=Math.max(photo/img.width, photo/img.height), dw=img.width*s, dh=img.height*s;
+    g.drawImage(img, ox+p+(photo-dw)/2, oy+p+(photo-dh)/2, dw, dh); g.restore();
+  } else { g.fillStyle='#f3e9dc'; round(g, ox+p, oy+p, photo, photo, 26); g.fill(); }
+  // badge
+  g.save(); g.translate(ox+p+34, oy+p+34); g.rotate(-0.07);
+  g.font=`800 34px ${nameFont}`; g.textAlign='left'; g.textBaseline='middle';
+  const label=badgeText(), tw=g.measureText(label).width;
+  round(g,-13,-28,tw+26,52,11); g.fillStyle='#3a2e26'; g.fill();
+  g.fillStyle='#fffaf2'; g.fillText(label,0,0); g.restore();
+  // name centered in the space below the photo (auto-shrink to fit)
+  const ny=(oy+p+photo + (oy+ch-p))/2, maxW=cw-2*p;
+  let fs=88; g.font=`800 ${fs}px ${nameFont}`;
+  let total=g.measureText(w.name).width;
+  if(total>maxW){ fs=Math.floor(fs*maxW/total); g.font=`800 ${fs}px ${nameFont}`; total=g.measureText(w.name).width; }
+  g.textBaseline='middle'; g.textAlign='left';
+  const [lead,rest]=splitFirstGrapheme(w.name);
+  let x=ox+(cw-total)/2;
+  g.fillStyle='#c74d18'; g.fillText(lead,x,ny); x+=g.measureText(lead).width;
+  g.fillStyle='#3a2e26'; g.fillText(rest,x,ny);
+}
+
 function round(g,x,y,w,h,r){g.beginPath();g.moveTo(x+r,y);g.arcTo(x+w,y,x+w,y+h,r);g.arcTo(x+w,y+h,x,y+h,r);g.arcTo(x,y+h,x,y,r);g.arcTo(x,y,x+w,y,r);g.closePath();}
+document.getElementById('cutBtn').onclick = makeCutSheet;
 function show(id){document.getElementById(id).classList.remove('hidden');}
 function hide(id){document.getElementById(id).classList.add('hidden');}
 function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
