@@ -5,7 +5,10 @@ pick a picture, then print or download. Works in **English** and **हिंद�
 
 **▶ Live app:** https://narender-khola.github.io/phonics-card-maker/
 
-<p align="center"><i>Photo on top, word below, with the leading letter highlighted.</i></p>
+<p align="center">
+  <img src="docs/screenshot.png" alt="Two phonics cards for the /f/ sound — a fox and a feather" width="640">
+  <br><i>Photo on top, word below, with the leading letter highlighted.</i>
+</p>
 
 ## What it does
 
